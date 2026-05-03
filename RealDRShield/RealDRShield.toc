@@ -1,0 +1,10 @@
+## Interface: 120001
+## Title: Real DR Shield
+## Title-zhCN: 实时减伤与护盾
+## Notes: Shows categorized damage reduction and absorb shields.
+## Notes-zhCN: 显示分类型减伤率和吸收护盾数值。
+## Author: Codex
+## Version: 0.2.0
+## SavedVariables: RealDRShieldDB
+
+Core.lua
