@@ -52,6 +52,8 @@ local auraRules = {
 }
 
 local db
+local updateErrorShown = false
+local updateDisplay
 local frame = CreateFrame("Frame", ADDON_NAME .. "Frame", UIParent, "BackdropTemplate")
 frame:SetSize(280, 152)
 frame:SetMovable(true)
@@ -101,6 +103,36 @@ local function copyDefaults(target, source)
             target[key] = value
         end
     end
+end
+
+local function sanitizeSettings()
+    if type(db.point) ~= "string" then
+        db.point = defaults.point
+    end
+    if type(db.relativePoint) ~= "string" then
+        db.relativePoint = defaults.relativePoint
+    end
+    if type(db.x) ~= "number" then
+        db.x = defaults.x
+    end
+    if type(db.y) ~= "number" then
+        db.y = defaults.y
+    end
+    if type(db.scale) ~= "number" or db.scale <= 0 then
+        db.scale = defaults.scale
+    end
+    if type(db.alpha) ~= "number" then
+        db.alpha = defaults.alpha
+    end
+    if type(db.locked) ~= "boolean" then
+        db.locked = defaults.locked
+    end
+    if type(db.showHealAbsorb) ~= "boolean" then
+        db.showHealAbsorb = defaults.showHealAbsorb
+    end
+
+    db.scale = math.max(0.5, math.min(db.scale, 2))
+    db.alpha = math.max(0.2, math.min(db.alpha, 1))
 end
 
 local function shortNumber(value)
@@ -235,22 +267,58 @@ local function getAbsorbs()
 end
 
 local function savePosition()
+    if not db then
+        return
+    end
+
     local point, _, relativePoint, x, y = frame:GetPoint(1)
-    db.point = point
-    db.relativePoint = relativePoint
-    db.x = x
-    db.y = y
+    db.point = point or defaults.point
+    db.relativePoint = relativePoint or defaults.relativePoint
+    db.x = x or defaults.x
+    db.y = y or defaults.y
 end
 
 local function applySettings()
     frame:ClearAllPoints()
-    frame:SetPoint(db.point, UIParent, db.relativePoint, db.x, db.y)
+    local ok = pcall(frame.SetPoint, frame, db.point, UIParent, db.relativePoint, db.x, db.y)
+    if not ok then
+        db.point = defaults.point
+        db.relativePoint = defaults.relativePoint
+        db.x = defaults.x
+        db.y = defaults.y
+        frame:ClearAllPoints()
+        frame:SetPoint(db.point, UIParent, db.relativePoint, db.x, db.y)
+    end
     frame:SetScale(db.scale)
     frame:SetAlpha(db.alpha)
     frame:EnableMouse(not db.locked)
 end
 
-local function updateDisplay()
+local function safeUpdateDisplay()
+    if not db then
+        return
+    end
+
+    local ok, err = pcall(updateDisplay)
+    if ok then
+        updateErrorShown = false
+        return
+    end
+
+    physicalText:SetText("物理减伤: --")
+    magicText:SetText("魔法减伤: --")
+    specialText:SetText("范围减伤: --  全局减伤: --")
+    absorbText:SetText("总护盾: --")
+    absorbSplitText:SetText("物理盾: --  魔法盾: --  通用盾: --  未分类: --")
+    auraText:SetText("数据刷新失败，请 /reload 后重试")
+
+    if not updateErrorShown then
+        updateErrorShown = true
+        print("Real DR Shield: display update failed: " .. tostring(err))
+    end
+end
+
+function updateDisplay()
     local armorDR = getArmorReduction()
     local versatilityDR = getVersatilityReduction()
     local avoidanceDR = getAvoidanceReduction()
@@ -302,10 +370,11 @@ frame:SetScript("OnEvent", function(_, event, loadedAddon)
         RealDRShieldDB = RealDRShieldDB or {}
         db = RealDRShieldDB
         copyDefaults(db, defaults)
+        sanitizeSettings()
         applySettings()
-        updateDisplay()
+        safeUpdateDisplay()
     elseif db then
-        updateDisplay()
+        safeUpdateDisplay()
     end
 end)
 
@@ -327,7 +396,7 @@ frame:SetScript("OnUpdate", function(_, delta)
     elapsed = elapsed + delta
     if elapsed >= 0.2 then
         elapsed = 0
-        updateDisplay()
+        safeUpdateDisplay()
     end
 end)
 
@@ -353,6 +422,14 @@ SLASH_REALDRSHIELD2 = "/减伤"
 SlashCmdList.REALDRSHIELD = function(message)
     message = string.lower(message or "")
 
+    if not db then
+        RealDRShieldDB = RealDRShieldDB or {}
+        db = RealDRShieldDB
+        copyDefaults(db, defaults)
+        sanitizeSettings()
+        applySettings()
+    end
+
     if message == "lock" then
         db.locked = true
         applySettings()
@@ -366,18 +443,24 @@ SlashCmdList.REALDRSHIELD = function(message)
             db[key] = nil
         end
         copyDefaults(db, defaults)
+        sanitizeSettings()
         applySettings()
-        updateDisplay()
+        safeUpdateDisplay()
         print("Real DR Shield: reset.")
     elseif message == "hide" then
         frame:Hide()
     elseif message == "show" then
         frame:Show()
-        updateDisplay()
+        safeUpdateDisplay()
     elseif message == "healabsorb" then
         db.showHealAbsorb = not db.showHealAbsorb
-        updateDisplay()
+        safeUpdateDisplay()
         print("Real DR Shield: heal absorb display " .. (db.showHealAbsorb and "on." or "off."))
+    elseif message == "reload" or message == "refresh" then
+        sanitizeSettings()
+        applySettings()
+        safeUpdateDisplay()
+        print("Real DR Shield: refreshed.")
     elseif message == "scan" then
         printPlayerAuras()
     else
@@ -388,6 +471,7 @@ SlashCmdList.REALDRSHIELD = function(message)
         print("/rds hide - hide the frame")
         print("/rds show - show the frame")
         print("/rds healabsorb - toggle heal absorb display")
+        print("/rds reload - refresh settings and display")
         print("/rds scan - print active player aura spell IDs")
     end
 end

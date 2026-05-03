@@ -29,6 +29,7 @@ Restart the game or run `/reload`, then enable **Real DR Shield** in the addon l
 /rds hide        hide the frame
 /rds show        show the frame
 /rds healabsorb  toggle heal absorb display
+/rds reload      reapply settings and refresh the display
 /rds scan        print active player aura spell IDs
 ```
 

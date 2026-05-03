@@ -37,6 +37,7 @@ World of Warcraft/_retail_/Interface/AddOns/
 /rds hide        隐藏框体
 /rds show        显示框体
 /rds healabsorb  开关治疗吸收显示
+/rds reload      重新应用设置并刷新显示
 /rds scan        打印当前玩家身上的光环 spell ID
 ```
 
