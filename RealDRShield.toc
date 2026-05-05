@@ -4,7 +4,7 @@
 ## Notes: Shows categorized damage reduction and absorb shields.
 ## Notes-zhCN: 显示分类型减伤率和吸收护盾数值。
 ## Author: Codex
-## Version: 0.2.1
+## Version: 0.2.2
 ## SavedVariables: RealDRShieldDB
 
 Core.lua

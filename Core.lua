@@ -149,20 +149,32 @@ local function shortNumber(value)
     return tostring(value)
 end
 
+local function safeCall(fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+
+    local ok, first, second, third, fourth = pcall(fn, ...)
+    if ok then
+        return first, second, third, fourth
+    end
+    return nil
+end
+
 local function getPlayerLevel()
-    local level = UnitEffectiveLevel and UnitEffectiveLevel("player") or UnitLevel("player")
+    local level = safeCall(UnitEffectiveLevel, "player") or safeCall(UnitLevel, "player")
     if not level or level < 1 then
-        level = UnitLevel("player")
+        level = safeCall(UnitLevel, "player")
     end
     return level or 1
 end
 
 local function getArmorReduction()
-    local _, effectiveArmor = UnitArmor("player")
+    local _, effectiveArmor = safeCall(UnitArmor, "player")
     effectiveArmor = math.max(effectiveArmor or 0, 0)
 
     if PaperDollFrame_GetArmorReduction then
-        local reduction = PaperDollFrame_GetArmorReduction(effectiveArmor, getPlayerLevel())
+        local reduction = safeCall(PaperDollFrame_GetArmorReduction, effectiveArmor, getPlayerLevel())
         return math.max(0, math.min((reduction or 0) / 100, 0.85)), effectiveArmor
     end
 
@@ -182,20 +194,20 @@ end
 
 local function getVersatilityReduction()
     if CR_VERSATILITY_DAMAGE_TAKEN and GetCombatRatingBonus then
-        return percentToRate(GetCombatRatingBonus(CR_VERSATILITY_DAMAGE_TAKEN))
+        return percentToRate(safeCall(GetCombatRatingBonus, CR_VERSATILITY_DAMAGE_TAKEN))
     end
     if CR_VERSATILITY_DAMAGE_DONE and GetCombatRatingBonus then
-        return percentToRate(GetCombatRatingBonus(CR_VERSATILITY_DAMAGE_DONE) / 2)
+        return percentToRate((safeCall(GetCombatRatingBonus, CR_VERSATILITY_DAMAGE_DONE) or 0) / 2)
     end
     return 0
 end
 
 local function getAvoidanceReduction()
     if GetAvoidance then
-        return percentToRate(GetAvoidance())
+        return percentToRate(safeCall(GetAvoidance))
     end
     if CR_AVOIDANCE and GetCombatRatingBonus then
-        return percentToRate(GetCombatRatingBonus(CR_AVOIDANCE))
+        return percentToRate(safeCall(GetCombatRatingBonus, CR_AVOIDANCE))
     end
     return 0
 end
@@ -231,7 +243,7 @@ local function scanAuras()
     }
 
     for spellID, rule in pairs(auraRules) do
-        local aura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and C_UnitAuras.GetPlayerAuraBySpellID(spellID)
+        local aura = C_UnitAuras and safeCall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
         if aura then
             local name = rule.name or aura.name or tostring(spellID)
             result.activeNames[#result.activeNames + 1] = name
@@ -261,8 +273,8 @@ local function scanAuras()
 end
 
 local function getAbsorbs()
-    local absorb = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs("player") or 0
-    local healAbsorb = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs("player") or 0
+    local absorb = safeCall(UnitGetTotalAbsorbs, "player") or 0
+    local healAbsorb = safeCall(UnitGetTotalHealAbsorbs, "player") or 0
     return absorb or 0, healAbsorb or 0
 end
 
@@ -417,6 +429,20 @@ local function printPlayerAuras()
     end
 end
 
+local function printDebugValues()
+    local armorDR, armor = getArmorReduction()
+    print("Real DR Shield debug:")
+    print(string.format("armor=%s armorDR=%.1f%%", shortNumber(armor), armorDR * 100))
+    print(string.format("versatilityDR=%.1f%%", getVersatilityReduction() * 100))
+    print(string.format("avoidanceDR=%.1f%%", getAvoidanceReduction() * 100))
+
+    local absorb, healAbsorb = getAbsorbs()
+    print(string.format("absorb=%s healAbsorb=%s", shortNumber(absorb), shortNumber(healAbsorb)))
+    print("UnitArmor API: " .. (type(UnitArmor) == "function" and "ok" or "missing"))
+    print("GetCombatRatingBonus API: " .. (type(GetCombatRatingBonus) == "function" and "ok" or "missing"))
+    print("C_UnitAuras.GetPlayerAuraBySpellID API: " .. (C_UnitAuras and type(C_UnitAuras.GetPlayerAuraBySpellID) == "function" and "ok" or "missing"))
+end
+
 SLASH_REALDRSHIELD1 = "/rds"
 SLASH_REALDRSHIELD2 = "/减伤"
 SlashCmdList.REALDRSHIELD = function(message)
@@ -463,6 +489,8 @@ SlashCmdList.REALDRSHIELD = function(message)
         print("Real DR Shield: refreshed.")
     elseif message == "scan" then
         printPlayerAuras()
+    elseif message == "debug" then
+        printDebugValues()
     else
         print("Real DR Shield commands:")
         print("/rds lock - lock the frame")
@@ -473,5 +501,6 @@ SlashCmdList.REALDRSHIELD = function(message)
         print("/rds healabsorb - toggle heal absorb display")
         print("/rds reload - refresh settings and display")
         print("/rds scan - print active player aura spell IDs")
+        print("/rds debug - print raw API values")
     end
 end

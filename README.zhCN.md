@@ -39,6 +39,7 @@ World of Warcraft/_retail_/Interface/AddOns/
 /rds healabsorb  开关治疗吸收显示
 /rds reload      重新应用设置并刷新显示
 /rds scan        打印当前玩家身上的光环 spell ID
+/rds debug       打印原始 API 数值
 ```
 
 中文命令别名：
